@@ -104,7 +104,8 @@ import java.util.Set;
  *
  * <p>This class also determines how blocks are rendered.
  *
- * <p>Block ID reference: http://minecraft.gamepedia.com/Data_values/Block_IDs
+ * <p><a href="https://minecraft.gamepedia.com/Java_Edition_data_values/Block_IDs">Block ID
+ * reference.</a>
  *
  * @author Jesper Öqvist <jesper.oqvist@cs.lth.se>
  */
@@ -256,10 +257,13 @@ public class Block extends Material {
   public static final int COALORE_ID = 0x10;
   public static final Block COALORE = new Block(COALORE_ID, "coal_ore", Texture.coalOre);
   public static final int WOOD_ID = 0x11;
-  public static final Block WOOD = new Block(WOOD_ID, "log2", Texture.oakWood) {
-    final Texture[][] texture =
-        {{Texture.oakWood, Texture.oakWoodTop}, {Texture.spruceWood, Texture.spruceWoodTop},
-            {Texture.birchWood, Texture.birchWoodTop}, {Texture.jungleWood, Texture.jungleTreeTop}};
+  public static final Block WOOD = new Block(WOOD_ID, "log", Texture.oakWood) {
+    final Texture[][] texture = {
+        {Texture.oakWood, Texture.oakWoodTop},
+        {Texture.spruceWood, Texture.spruceWoodTop},
+        {Texture.birchWood, Texture.birchWoodTop},
+        {Texture.jungleWood, Texture.jungleTreeTop}
+    };
 
     @Override public boolean intersect(Ray ray, Scene scene) {
       return WoodModel.intersect(ray, texture[ray.getBlockData() & 3]);
@@ -277,8 +281,12 @@ public class Block extends Material {
   };
   public static final int LEAVES_ID = 0x12;
   public static final Block LEAVES = new Block(LEAVES_ID, "leaves", Texture.oakLeaves) {
-    final Texture[] texture =
-        {Texture.oakLeaves, Texture.spruceLeaves, Texture.birchLeaves, Texture.jungleTreeLeaves};
+    final Texture[] texture = {
+        Texture.oakLeaves,
+        Texture.spruceLeaves,
+        Texture.birchLeaves,
+        Texture.jungleTreeLeaves
+    };
 
     @Override public boolean intersect(Ray ray, Scene scene) {
       return LeafModel.intersect(ray, scene, getTexture(ray.getBlockData()));
@@ -484,9 +492,10 @@ public class Block extends Material {
   };
   public static final int FLOWER_ID = 0x26;
   public static final Block FLOWER = new Block(FLOWER_ID, "red_flower", Texture.poppy) {
-    final Texture[] textures =
-        {Texture.poppy, Texture.blueOrchid, Texture.allium, Texture.azureBluet, Texture.redTulip,
-            Texture.orangeTulip, Texture.whiteTulip, Texture.pinkTulip, Texture.oxeyeDaisy};
+    final Texture[] textures = {
+        Texture.poppy, Texture.blueOrchid, Texture.allium, Texture.azureBluet, Texture.redTulip,
+        Texture.orangeTulip, Texture.whiteTulip, Texture.pinkTulip, Texture.oxeyeDaisy
+    };
 
     @Override public boolean intersect(Ray ray, Scene scene) {
       return SpriteModel.intersect(ray, textures[ray.getBlockData() % 9]);
@@ -582,7 +591,7 @@ public class Block extends Material {
     }
   };
   public static final int BRICKS_ID = 0x2D;
-  public static final Block BRICKS = new Block(BRICKS_ID, "brick_block", Texture.brick);
+  public static final Block BRICKS = new Block(BRICKS_ID, "bricks", Texture.brick);
   public static final int TNT_ID = 0x2E;
   public static final Block TNT = new Block(TNT_ID, "tnt", Texture.tntSide) {
     final Texture[] texture =

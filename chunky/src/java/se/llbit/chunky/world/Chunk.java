@@ -28,12 +28,14 @@ import se.llbit.chunky.map.UnknownLayer;
 import se.llbit.chunky.map.WorldMapLoader;
 import se.llbit.chunky.ui.MapViewMode;
 import se.llbit.log.Log;
+import se.llbit.math.QuickMath;
 import se.llbit.nbt.Tag;
 import se.llbit.nbt.CompoundTag;
 import se.llbit.nbt.ErrorTag;
 import se.llbit.nbt.ListTag;
 import se.llbit.nbt.NamedTag;
 import se.llbit.nbt.SpecificTag;
+import se.llbit.util.BitBuffer;
 import se.llbit.util.NotNull;
 
 import java.io.DataInputStream;
@@ -301,6 +303,8 @@ public class Chunk {
     }
   }
 
+  static Set<String> logged = new HashSet<>();
+
   private void extractChunkData(@NotNull Map<String, Tag> data, @NotNull byte[] blocks,
       @NotNull byte[] blockData) {
     Tag sections = data.get(LEVEL_SECTIONS);
@@ -308,102 +312,105 @@ public class Chunk {
       for (SpecificTag section : ((ListTag) sections)) {
         Tag yTag = section.get("Y");
         int yOffset = yTag.byteValue() & 0xFF;
-        Tag blockStates = section.get("BlockStates");
-        if (blockStates.isLongArray(1)) {
-          ListTag palette = section.get("Palette").asList();
-          int[] bp = new int[palette.size()];
-          int[] bd = new int[palette.size()];
-          int paletteIndex = 0;
-          for (Tag item : palette.asList()) {
-            String name = item.asCompound().get("Name").stringValue("");
-            if (name.startsWith("minecraft:")) {
-              name = name.substring(10);
-              Block block;
-              if (Block.nameMap.containsKey(name)) {
-                block = Block.nameMap.get(name);
-              } else {
-                switch (name) {
-                  case "infested_stone":
-                    block = Block.HIDDENSILVERFISH;
-                  case "granite":
-                    block = Block.STONE;
-                    bd[paletteIndex] = 1;
-                    break;
-                  case "diorite":
-                    block = Block.STONE;
-                    bd[paletteIndex] = 3;
-                    break;
-                  case "andesite":
-                    block = Block.STONE;
-                    bd[paletteIndex] = 5;
-                    break;
-                  case "grass_block":
-                    block = Block.GRASS;
-                    break;
-                  default:
-                    Log.info("Unknown block ID: " + name);
-                    block = Block.GOLDBLOCK;
+
+        ListTag palette = section.get("Palette").asList();
+        if (palette.isList()) {
+          // Bits per block:
+          int bpb = 4;
+          if (palette.size() > 16) {
+            bpb = QuickMath.log2(QuickMath.nextPow2(palette.size()));
+            //bpb = QuickMath.log2(palette.size());
+          }
+
+          int dataSize = (4096 * bpb) / 64;
+          Tag blockStates = section.get("BlockStates");
+
+          if (blockStates.isLongArray(dataSize)) {
+            int[] bp = new int[palette.size()];
+            int[] bd = new int[palette.size()];
+            int paletteIndex = 0;
+            for (Tag item : palette.asList()) {
+              String name = item.asCompound().get("Name").stringValue("");
+              if (name.startsWith("minecraft:")) {
+                name = name.substring(10);
+                Block block;
+                if (Block.nameMap.containsKey(name)) {
+                  block = Block.nameMap.get(name);
+                } else {
+                  switch (name) {
+                    case "infested_stone":
+                      block = Block.HIDDENSILVERFISH;
+                      break;
+                    case "granite":
+                      block = Block.STONE;
+                      bd[paletteIndex] = 1;
+                      break;
+                    case "diorite":
+                      block = Block.STONE;
+                      bd[paletteIndex] = 3;
+                      break;
+                    case "andesite":
+                      block = Block.STONE;
+                      bd[paletteIndex] = 5;
+                      break;
+                    case "grass_block":
+                      block = Block.GRASS;
+                      break;
+                    case "jungle_leaves":
+                      block = Block.LEAVES;
+                      bd[paletteIndex] = 3;
+                      break;
+                    case "jungle_log":
+                      block = Block.WOOD;
+                      bd[paletteIndex] = 3;
+                      break;
+                    case "oak_leaves":
+                      block = Block.LEAVES;
+                      bd[paletteIndex] = 0;
+                      break;
+                    case "oak_log":
+                      block = Block.WOOD;
+                      bd[paletteIndex] = 0;
+                      break;
+                    case "fern":
+                      block = Block.TALLGRASS;
+                      bd[paletteIndex] = 2;
+                      break;
+                    case "poppy":
+                      block = Block.FLOWER;
+                      bd[paletteIndex] = 0;
+                      break;
+                    case "dandelion":
+                      block = Block.DANDELION;
+                      bd[paletteIndex] = 0;
+                      break;
+                    default:
+                      if (!logged.contains(name)) {
+                        Log.info("Unknown block ID: " + name);
+                        logged.add(name);
+                      }
+                      block = Block.GOLDBLOCK;
+                  }
                 }
+                bp[paletteIndex++] = block.id;
               }
-              bp[paletteIndex++] = block.id;
             }
-          }
-          long[] bs = blockStates.longArray();
-          if (bs.length != 256 && bs.length != 320) {
-            Log.info("bs.length: " + bs.length);
-          }
-          int offset = SECTION_BYTES * yOffset;
-          for (int i = 0; i < bs.length; ++i) {
-            long l = bs[i];
-            int b0 = (int) (l >>> 56);
-            int b1 = (int) (l >>> 48) & 0xFF;
-            int b2 = (int) (l >>> 40) & 0xFF;
-            int b3 = (int) (l >>> 32) & 0xFF;
-            int b4 = (int) (l >>> 24) & 0xFF;
-            int b5 = (int) (l >>> 16) & 0xFF;
-            int b6 = (int) (l >>> 8) & 0xFF;
-            int b7 = (int) l & 0xFF;
-            if (b0 < bp.length) {
-              blocks[offset] = (byte) bp[b0];
-              blockData[offset] = (byte) bd[b0];
+            BitBuffer buffer = new BitBuffer(blockStates.longArray(), bpb);
+            int offset = SECTION_BYTES * yOffset;
+            for (int i = 0; i < SECTION_BYTES; ++i) {
+              int b0 = buffer.read();
+              if (b0 < bp.length) {
+                blocks[offset] = (byte) bp[b0];
+                blockData[offset] = (byte) bd[b0];
+              }
+              offset += 1;
             }
-            if (b1 < bp.length) {
-              blocks[offset + 1] = (byte) bp[b1];
-              blockData[offset + 1] = (byte) bd[b1];
-            }
-            if (b2 < bp.length) {
-              blocks[offset + 2] = (byte) bp[b2];
-              blockData[offset + 2] = (byte) bd[b2];
-            }
-            if (b3 < bp.length) {
-              blocks[offset + 3] = (byte) bp[b3];
-              blockData[offset + 3] = (byte) bd[b3];
-            }
-            if (b4 < bp.length) {
-              blocks[offset + 4] = (byte) bp[b4];
-              blockData[offset + 4] = (byte) bd[b4];
-            }
-            if (b5 < bp.length) {
-              blocks[offset + 5] = (byte) bp[b5];
-              blockData[offset + 5] = (byte) bd[b5];
-            }
-            if (b6 < bp.length) {
-              blocks[offset + 6] = (byte) bp[b6];
-              blockData[offset + 6] = (byte) bd[b6];
-            }
-            if (b7 < bp.length) {
-              blocks[offset + 7] = (byte) bp[b7];
-              blockData[offset + 7] = (byte) bd[b7];
-            }
-            offset += 8;
           }
         } else {
           Tag blocksTag = section.get("Blocks");
           if (blocksTag.isByteArray(SECTION_BYTES)) {
             System.arraycopy(blocksTag.byteArray(), 0, blocks, SECTION_BYTES * yOffset,
                 SECTION_BYTES);
-          } else {
-            Log.info("no blocks");
           }
           Tag dataTag = section.get("Data");
           if (dataTag.isByteArray(SECTION_HALF_NIBBLES)) {
@@ -489,6 +496,8 @@ public class Chunk {
 
   /**
    * Load the block data for this chunk.
+   *
+   * @param blocks block order: y, z, x.
    */
   public synchronized void getBlockData(byte[] blocks, byte[] blockData, byte[] biomes,
       Collection<CompoundTag> tileEntities, Collection<CompoundTag> entities) {

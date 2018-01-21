@@ -58,7 +58,7 @@ public class QuickMath {
   }
 
   /**
-   * @return 2-logarithm of x
+   * @return the 2-logarithm of x, rounded down.
    */
   public static int log2(int x) {
     int v = 0;
