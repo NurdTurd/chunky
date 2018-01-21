@@ -27,6 +27,7 @@ import se.llbit.chunky.map.SurfaceLayer;
 import se.llbit.chunky.map.UnknownLayer;
 import se.llbit.chunky.map.WorldMapLoader;
 import se.llbit.chunky.ui.MapViewMode;
+import se.llbit.log.Log;
 import se.llbit.nbt.Tag;
 import se.llbit.nbt.CompoundTag;
 import se.llbit.nbt.ErrorTag;
@@ -307,15 +308,108 @@ public class Chunk {
       for (SpecificTag section : ((ListTag) sections)) {
         Tag yTag = section.get("Y");
         int yOffset = yTag.byteValue() & 0xFF;
-        Tag blocksTag = section.get("Blocks");
-        if (blocksTag.isByteArray(SECTION_BYTES)) {
-          System
-              .arraycopy(blocksTag.byteArray(), 0, blocks, SECTION_BYTES * yOffset, SECTION_BYTES);
-        }
-        Tag dataTag = section.get("Data");
-        if (dataTag.isByteArray(SECTION_HALF_NIBBLES)) {
-          System.arraycopy(dataTag.byteArray(), 0, blockData, SECTION_HALF_NIBBLES * yOffset,
-              SECTION_HALF_NIBBLES);
+        Tag blockStates = section.get("BlockStates");
+        if (blockStates.isLongArray(1)) {
+          ListTag palette = section.get("Palette").asList();
+          int[] bp = new int[palette.size()];
+          int[] bd = new int[palette.size()];
+          int paletteIndex = 0;
+          for (Tag item : palette.asList()) {
+            String name = item.asCompound().get("Name").stringValue("");
+            if (name.startsWith("minecraft:")) {
+              name = name.substring(10);
+              Block block;
+              if (Block.nameMap.containsKey(name)) {
+                block = Block.nameMap.get(name);
+              } else {
+                switch (name) {
+                  case "infested_stone":
+                    block = Block.HIDDENSILVERFISH;
+                  case "granite":
+                    block = Block.STONE;
+                    bd[paletteIndex] = 1;
+                    break;
+                  case "diorite":
+                    block = Block.STONE;
+                    bd[paletteIndex] = 3;
+                    break;
+                  case "andesite":
+                    block = Block.STONE;
+                    bd[paletteIndex] = 5;
+                    break;
+                  case "grass_block":
+                    block = Block.GRASS;
+                    break;
+                  default:
+                    Log.info("Unknown block ID: " + name);
+                    block = Block.GOLDBLOCK;
+                }
+              }
+              bp[paletteIndex++] = block.id;
+            }
+          }
+          long[] bs = blockStates.longArray();
+          if (bs.length != 256 && bs.length != 320) {
+            Log.info("bs.length: " + bs.length);
+          }
+          int offset = SECTION_BYTES * yOffset;
+          for (int i = 0; i < bs.length; ++i) {
+            long l = bs[i];
+            int b0 = (int) (l >>> 56);
+            int b1 = (int) (l >>> 48) & 0xFF;
+            int b2 = (int) (l >>> 40) & 0xFF;
+            int b3 = (int) (l >>> 32) & 0xFF;
+            int b4 = (int) (l >>> 24) & 0xFF;
+            int b5 = (int) (l >>> 16) & 0xFF;
+            int b6 = (int) (l >>> 8) & 0xFF;
+            int b7 = (int) l & 0xFF;
+            if (b0 < bp.length) {
+              blocks[offset] = (byte) bp[b0];
+              blockData[offset] = (byte) bd[b0];
+            }
+            if (b1 < bp.length) {
+              blocks[offset + 1] = (byte) bp[b1];
+              blockData[offset + 1] = (byte) bd[b1];
+            }
+            if (b2 < bp.length) {
+              blocks[offset + 2] = (byte) bp[b2];
+              blockData[offset + 2] = (byte) bd[b2];
+            }
+            if (b3 < bp.length) {
+              blocks[offset + 3] = (byte) bp[b3];
+              blockData[offset + 3] = (byte) bd[b3];
+            }
+            if (b4 < bp.length) {
+              blocks[offset + 4] = (byte) bp[b4];
+              blockData[offset + 4] = (byte) bd[b4];
+            }
+            if (b5 < bp.length) {
+              blocks[offset + 5] = (byte) bp[b5];
+              blockData[offset + 5] = (byte) bd[b5];
+            }
+            if (b6 < bp.length) {
+              blocks[offset + 6] = (byte) bp[b6];
+              blockData[offset + 6] = (byte) bd[b6];
+            }
+            if (b7 < bp.length) {
+              blocks[offset + 7] = (byte) bp[b7];
+              blockData[offset + 7] = (byte) bd[b7];
+            }
+            offset += 8;
+          }
+        } else {
+          Tag blocksTag = section.get("Blocks");
+          if (blocksTag.isByteArray(SECTION_BYTES)) {
+            System.arraycopy(blocksTag.byteArray(), 0, blocks, SECTION_BYTES * yOffset,
+                SECTION_BYTES);
+          } else {
+            Log.info("no blocks");
+          }
+          Tag dataTag = section.get("Data");
+          if (dataTag.isByteArray(SECTION_HALF_NIBBLES)) {
+            System.arraycopy(dataTag.byteArray(), 0, blockData, SECTION_HALF_NIBBLES * yOffset,
+                SECTION_HALF_NIBBLES);
+          }
         }
       }
     }
